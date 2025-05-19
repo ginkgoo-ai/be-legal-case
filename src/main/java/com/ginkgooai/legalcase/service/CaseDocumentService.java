@@ -1,28 +1,34 @@
 package com.ginkgooai.legalcase.service;
 
+import com.ginkgooai.core.common.exception.ResourceNotFoundException;
 import com.ginkgooai.legalcase.client.storage.StorageClient;
 import com.ginkgooai.legalcase.client.storage.dto.CloudFileResponse;
-import com.ginkgooai.legalcase.domain.*;
+import com.ginkgooai.legalcase.domain.CaseDocument;
+import com.ginkgooai.legalcase.domain.LegalCase;
+import com.ginkgooai.legalcase.domain.SupportingDocument;
+import com.ginkgooai.legalcase.domain.event.CaseEvents;
 import com.ginkgooai.legalcase.repository.CaseDocumentRepository;
 import com.ginkgooai.legalcase.repository.LegalCaseRepository;
 import com.ginkgooai.legalcase.service.ai.DocumentAnalysisService;
 import com.ginkgooai.legalcase.service.event.DomainEventPublisherFactory;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
-import org.springframework.beans.BeanUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationAdapter;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.net.URL;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 /**
- * Service for document upload and processing
+ * Service for managing case documents
  */
 @Service
 @RequiredArgsConstructor
@@ -46,7 +52,7 @@ public class CaseDocumentService {
 	 */
 	@Transactional(readOnly = true)
 	public Optional<CaseDocument> getDocument(String documentId) {
-		return caseDocumentRepository.findById(documentId);
+		return caseDocumentRepository.findByIdWithLegalCase(documentId);
 	}
 
 	/**
@@ -56,300 +62,201 @@ public class CaseDocumentService {
 	 */
 	@Transactional(readOnly = true)
 	public List<CaseDocument> getDocumentsByCaseId(String caseId) {
-		return legalCaseRepository.findDocumentsByCaseId(caseId);
+		return caseDocumentRepository.findAllByCaseId(caseId);
 	}
 
 	/**
-	 * Upload multiple documents for a case
+	 * Upload documents to a case
 	 * @param caseId case ID
-	 * @param storageIds list of storage IDs for uploaded files
+	 * @param storageIds list of storage IDs
 	 * @return list of created document IDs
 	 */
 	@Transactional
 	public List<String> uploadDocuments(String caseId, List<String> storageIds) {
 		log.info("Uploading {} documents for case: {}", storageIds.size(), caseId);
 
+		// Fetch the legal case
 		LegalCase legalCase = legalCaseRepository.findById(caseId)
-			.orElseThrow(() -> new EntityNotFoundException("Case not found: " + caseId));
+			.orElseThrow(() -> new IllegalArgumentException("Case not found: " + caseId));
 
-		List<CaseDocument> createdDocuments = new ArrayList<>();
-
-		ResponseEntity<List<CloudFileResponse>> response = storageClient.getFileDetails(storageIds);
-
-		if (response.getStatusCode().isError() || response.getBody() == null) {
-			throw new RuntimeException("Failed to get file details: " + response.getStatusCode());
-		}
-
-		List<CloudFileResponse> fileResponses = response.getBody();
-
-		Map<String, CloudFileResponse> fileInfoMap = fileResponses.stream()
+		ResponseEntity<List<CloudFileResponse>> fileDetails = storageClient.getFileDetails(storageIds);
+		Map<String, CloudFileResponse> fileDetailsMap = fileDetails.getBody()
+			.stream()
 			.collect(Collectors.toMap(CloudFileResponse::getId, file -> file));
 
-		// 先删除已存在的相同storageId的文档
+		// Create a document for each storage ID
+		List<String> documentIds = new ArrayList<>();
 		for (String storageId : storageIds) {
-			// 查找case下具有相同storageId的文档
-			List<CaseDocument> existingDocuments = caseDocumentRepository.findByCaseIdAndStorageId(caseId, storageId);
-
-			if (!existingDocuments.isEmpty()) {
-				log.info("Removing {} existing documents with storageId {} from case {}", existingDocuments.size(),
-						storageId, caseId);
-
-				// 从case的文档集合中移除
-				for (CaseDocument existingDoc : existingDocuments) {
-					legalCase.getDocuments().remove(existingDoc);
-				}
-
-				// 从数据库中删除
-				caseDocumentRepository.deleteAll(existingDocuments);
-			}
-		}
-
-		// Process each storage ID and create documents in PENDING status
-		for (String storageId : storageIds) {
-			CloudFileResponse fileInfo = fileInfoMap.get(storageId);
-
+			CloudFileResponse fileInfo = fileDetailsMap.get(storageId);
 			if (fileInfo == null) {
-				log.warn("File info not found for storage ID: {}", storageId);
+				log.warn("No file details found for storage ID: {}", storageId);
 				continue;
 			}
 
-			String fileName = fileInfo.getOriginalName();
-			String fileType = fileInfo.getFileType();
-			Long fileSize = fileInfo.getFileSize();
-			String publicUrl = storageClient.generatePresignedUrl(fileInfo.getStorageName())
-				.getBody()
-				.getFile()
-				.toString();
+			// First check for and remove any documents with the same storage ID
+			List<CaseDocument> existingDocuments = caseDocumentRepository.findByCaseIdAndStorageId(caseId, storageId);
+			for (CaseDocument existingDoc : existingDocuments) {
+				// Remove from the case's document collection
+				legalCase.getDocuments().remove(existingDoc);
+			}
 
-			// Create a generic document first, type will be determined by AI
-			CaseDocument document = new CaseDocument();
-			document.setTitle(fileName);
-			document.setDescription("Uploaded document awaiting analysis");
-			document.setFilePath(publicUrl);
-			document.setFileType(fileType);
-			document.setFileSize(fileSize);
+			// Create a supporting document by default
+			SupportingDocument document = new SupportingDocument();
 			document.setStorageId(storageId);
+			document.setTitle(fileInfo.getOriginalName());
+			document.setDescription("Uploaded document");
+			document.setFilePath(fileInfo.getStoragePath());
+			document.setFileType(fileInfo.getFileType());
+			document.setFileSize(fileInfo.getFileSize());
 			document.setStatus(CaseDocument.DocumentStatus.PENDING);
-			document.setDocumentCategory(CaseDocument.DocumentCategory.SUPPORTING_DOCUMENT); // Default
-																								// category
-			document.setLegalCase(legalCase);
+			document.setDocumentType(CaseDocument.DocumentType.OTHER);
 
-			legalCase.getDocuments().add(document);
-			createdDocuments.add(document);
+			// Add to case
+			legalCase.addSupportingDocument(document);
+			documentIds.add(document.getId());
 		}
 
-		if (!createdDocuments.isEmpty()) {
-			legalCase.initiateLlmAnalysis("document_analysis");
-		}
-
-		// 统一保存所有文档
+		// Save the case
 		LegalCase savedLegalCase = legalCaseRepository.save(legalCase);
 		eventPublisherFactory.publishEvents(legalCase);
-
-		log.info("Created {} documents for case: {}", createdDocuments.size(), caseId);
 
 		// 使用TransactionSynchronizationManager在事务提交后执行异步操作
 		final List<CaseDocument> pendingDocuments = savedLegalCase.getDocuments()
 			.stream()
 			.filter(doc -> doc.getStatus() == CaseDocument.DocumentStatus.PENDING)
 			.collect(Collectors.toList());
+		documentIds = pendingDocuments.stream().map(CaseDocument::getId).collect(Collectors.toList());
 
-		org.springframework.transaction.support.TransactionSynchronizationManager
-			.registerSynchronization(new org.springframework.transaction.support.TransactionSynchronization() {
+		log.info("Created {} documents for case: {}", pendingDocuments.size(), caseId);
+
+		// After transaction is complete, queue documents for analysis
+		if (TransactionSynchronizationManager.isSynchronizationActive()) {
+			List<String> finalDocumentIds = documentIds;
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
 				@Override
 				public void afterCommit() {
-					for (CaseDocument document : pendingDocuments) {
-						String docId = document.getId();
-						String publicUrl = document.getFilePath();
-						CompletableFuture.runAsync(() -> {
-							queueDocumentForAnalysis(caseId, docId, publicUrl);
-						});
+					for (String documentId : finalDocumentIds) {
+						CaseDocument document = caseDocumentRepository.findById(documentId).orElse(null);
+						if (document == null) {
+							continue;
+						}
+
+						// Get presigned URL for analysis
+						try {
+							CloudFileResponse fileInfo = fileDetailsMap.get(document.getStorageId());
+
+							ResponseEntity<URL> urlResponse = storageClient
+								.generatePresignedUrl(fileInfo.getStorageName());
+							URL presignedUrl = urlResponse.getBody();
+							log.debug("Uploading presigned url: {}", presignedUrl);
+							CompletableFuture.runAsync(() -> {
+								queueDocumentForAnalysis(caseId, documentId, presignedUrl.toString());
+							});
+						}
+						catch (Exception e) {
+							log.error("Error generating presigned URL for document: {}", documentId, e);
+						}
 					}
 				}
 			});
+		}
 
-		return pendingDocuments.stream().map(CaseDocument::getId).collect(Collectors.toList());
+		log.info("Uploaded {} documents for case: {}", documentIds.size(), caseId);
+		return documentIds;
 	}
 
 	/**
-	 * Queue a document for AI analysis to determine its type and category
+	 * Queue a document for analysis
+	 * @param caseId case ID
 	 * @param documentId document ID
-	 * @param publicUrl public URL to access the document
+	 * @param publicUrl public URL of the document
 	 */
 	@Async
 	public void queueDocumentForAnalysis(String caseId, String documentId, String publicUrl) {
-		log.info("Queuing document for analysis: {}", documentId);
+		log.info("Queueing document for analysis: {} with URL: {}", documentId, publicUrl);
 
-		try {
-			// Call the document analysis service directly from this async method
-			documentAnalysisService.analyzeDocument(caseId, documentId, publicUrl, this::updateDocumentAfterAnalysis);
-		}
-		catch (Exception e) {
-			log.error("Error queuing document for analysis: {}", documentId, e);
-			updateDocumentWithError(documentId, "Error queuing for analysis: " + e.getMessage());
-		}
+		// Create callback to handle analysis result
+		BiConsumer<Pair, Map<String, Object>> callback = this::updateDocumentAfterAnalysis;
+
+		// Start the analysis
+		documentAnalysisService.analyzeDocument(caseId, documentId, publicUrl, callback);
 	}
 
 	/**
-	 * Update document after AI analysis
-	 * @param analysisResult the analysis result containing document type, category, and
-	 * extracted data
+	 * Update document after analysis
+	 * @param pair pair of caseId and documentId
+	 * @param analysisResult analysis result
 	 */
 	@Transactional
 	public void updateDocumentAfterAnalysis(Pair pair, Map<String, Object> analysisResult) {
+		String caseId = (String) pair.getLeft();
+		String documentId = (String) pair.getRight();
 
-		String caseId = pair.getLeft().toString();
-		String documentId = pair.getRight().toString();
-		log.info("Updating document with analysis results: {}", pair.getRight());
-		try {
-			// Find the document with its legal case eagerly loaded
-			LegalCase legalCase = legalCaseRepository.findByIdWithDocuments(caseId)
-				.orElseThrow(() -> new EntityNotFoundException("Legal case not found: " + caseId));
-			CaseDocument document = legalCase.getDocuments()
-				.stream()
-				.filter(doc -> doc.getId().equals(documentId))
-				.findFirst()
-				.orElse(null);
+		log.info("Updating document after analysis: {}", documentId);
 
-			if (document == null) {
-				log.error("Original document with ID {} not found in case {}", documentId, caseId);
-				// Optionally throw an exception or handle as an error
-				updateDocumentWithError(documentId, "Original document not found for update after analysis.");
-				return;
-			}
+		// Get the document
+		LegalCase legalCase = legalCaseRepository.findByIdWithDocuments(caseId)
+			.orElseThrow(() -> new ResourceNotFoundException("Legal case", "caseId", caseId));
 
-			// Get analysis results
-			String detectedType = (String) analysisResult.get("documentType");
-			String detectedCategory = (String) analysisResult.get("documentCategory");
-			Map<String, Object> extractedData = (Map<String, Object>) analysisResult.get("extractedData");
-			boolean isComplete = (boolean) analysisResult.getOrDefault("isComplete", false);
+		CaseDocument document = legalCase.getDocuments()
+			.stream()
+			.filter(doc -> doc.getId().equals(documentId))
+			.findFirst()
+			.orElseThrow(() -> new ResourceNotFoundException("Case document", "caseId-documentId",
+					String.join("-", caseId, documentId)));
 
-			// Create the appropriate document type based on category
-			CaseDocument typedDocument;
-			switch (CaseDocument.DocumentCategory.valueOf(detectedCategory)) {
-				case QUESTIONNAIRE:
-					typedDocument = new QuestionnaireDocument();
-					BeanUtils.copyProperties(document, typedDocument); // Copies ID as
-																		// well
-
-					((QuestionnaireDocument) typedDocument).setQuestionnaireType(detectedType);
-					((QuestionnaireDocument) typedDocument).setResponsesJson(convertMapToJson(extractedData));
-					((QuestionnaireDocument) typedDocument).setCompletionPercentage(isComplete ? 100 : 50);
-					break;
-
-				case PROFILE:
-					typedDocument = new ProfileDocument();
-					BeanUtils.copyProperties(document, typedDocument); // Copies ID as
-																		// well
-
-					((ProfileDocument) typedDocument).setProfileType(detectedType);
-					((ProfileDocument) typedDocument).setIdentityVerified(isComplete);
-					break;
-
-				case SUPPORTING_DOCUMENT:
-					typedDocument = new SupportingDocument();
-					BeanUtils.copyProperties(document, typedDocument); // Copies ID as
-																		// well
-
-					((SupportingDocument) typedDocument).setDocumentReference(UUID.randomUUID().toString());
-					((SupportingDocument) typedDocument).setIssueDate(extractedData.get("issueDate") != null
-							? java.time.LocalDateTime.parse((String) extractedData.get("issueDate")) : null);
-					((SupportingDocument) typedDocument).setExpiryDate(extractedData.get("expiryDate") != null
-							? java.time.LocalDateTime.parse((String) extractedData.get("expiryDate")) : null);
-					((SupportingDocument) typedDocument).setVerificationRequired(true);
-					((SupportingDocument) typedDocument).setVerified(isComplete);
-
-					break;
-
-				default:
-					throw new IllegalArgumentException("Unsupported document category: " + detectedCategory);
-			}
-
-			// Remove the old document and add the new typed document to the case's
-			// collection
-			// This is crucial for JPA to correctly manage the relationship and persist
-			// the typed document
-			// legalCase.getDocuments().remove(document);
-			// legalCase.getDocuments().add(typedDocument);
-
-			// Set common properties from analysis ON THE NEW TYPED DOCUMENT
-			CaseDocument.DocumentType documentTypeEnum = CaseDocument.DocumentType.valueOf(detectedType);
-			CaseDocument.DocumentCategory documentCategoryEnum = CaseDocument.DocumentCategory
-				.valueOf(detectedCategory);
-
-			document.setDocumentType(documentTypeEnum);
-			// The documentCategory is intrinsically part of the typedDocument (e.g.
-			// QuestionnaireDocument's category is QUESTIONNAIRE)
-			// and should be set correctly by the specific constructors or after
-			// BeanUtils.copyProperties if the parent class has this field.
-			// If CaseDocument has a discriminator column based on category, this might be
-			// handled by JPA.
-			// Let's ensure it's explicitly set on typedDocument if not already handled.
-			document.setDocumentCategory(documentCategoryEnum);
-			document.setMetadataJson(convertMapToJson(extractedData));
-			document
-				.setStatus(isComplete ? CaseDocument.DocumentStatus.COMPLETE : CaseDocument.DocumentStatus.INCOMPLETE);
-
-			// Update description to include AI analysis results ON THE NEW TYPED DOCUMENT
-			document.setDescription("Analyzed document: " + documentTypeEnum.getDisplayName() + " - "
-					+ documentCategoryEnum.getDisplayName());
-
-			// caseDocumentRepository.save(typedDocument); // This should not be needed if
-			// cascade is set correctly
-
-			legalCaseRepository.save(legalCase); // This will cascade save/update to
-													// typedDocument
-
-			// Trigger document completion events if needed
-			if (isComplete) {
-				// Use typedDocument's ID and title
-				legalCase.markDocumentComplete(typedDocument.getId(), typedDocument.getTitle());
-				eventPublisherFactory.publishEvents(legalCase);
-			}
-
-			log.info("Document analysis completed for ID: {}, new document type: {}, category: {}",
-					typedDocument.getId(), documentTypeEnum, documentCategoryEnum); // Use
-																					// typedDocument.getId()
+		// Check for errors
+		if (analysisResult.containsKey("error")) {
+			String errorMessage = (String) analysisResult.get("error");
+			log.error("Error analyzing document {}: {}", documentId, errorMessage);
+			document.setStatus(CaseDocument.DocumentStatus.REJECTED);
+			caseDocumentRepository.save(document);
+			return;
 		}
-		catch (Exception e) {
-			log.error("Error updating document after analysis: {}", documentId, e);
-			updateDocumentWithError(documentId, "Error processing analysis results: " + e.getMessage());
+
+		// Get document type and category
+		String documentType = (String) analysisResult.getOrDefault("documentType", "OTHER");
+		String documentCategory = (String) analysisResult.getOrDefault("documentCategory", "SUPPORTING_DOCUMENT");
+		boolean isComplete = (boolean) analysisResult.getOrDefault("isComplete", false);
+		Map<String, Object> extractedData = (Map<String, Object>) analysisResult.getOrDefault("extractedData",
+				new HashMap<>());
+
+		document.setDocumentCategory(CaseDocument.DocumentCategory.valueOf(documentCategory));
+		document.setMetadataJson(convertMapToJson(extractedData));
+		document.setDocumentType(CaseDocument.DocumentType.valueOf(documentType));
+
+		legalCaseRepository.save(legalCase);
+
+		// If document is complete, fire event
+		if (isComplete) {
+			legalCase.registerEvent(new CaseEvents.DocumentCompletedEvent(caseId, documentId, document.getTitle()));
+			eventPublisherFactory.publishEvents(legalCase);
 		}
 	}
 
 	/**
-	 * Update document with error information
+	 * Update document with error
 	 * @param documentId document ID
 	 * @param errorMessage error message
 	 */
 	@Transactional
 	public void updateDocumentWithError(String documentId, String errorMessage) {
-		try {
-			// Find the document with its legal case eagerly loaded
-			CaseDocument document = caseDocumentRepository.findByIdWithLegalCase(documentId)
-				.orElseThrow(() -> new EntityNotFoundException("Document not found: " + documentId));
+		log.error("Updating document with error: {}", documentId);
 
-			// Just update the original document status rather than creating a new one
-			document.setStatus(CaseDocument.DocumentStatus.REJECTED);
-			document.setDescription("Analysis failed: " + errorMessage);
+		// Get the document
+		CaseDocument document = caseDocumentRepository.findByIdWithLegalCase(documentId)
+			.orElseThrow(() -> new IllegalArgumentException("Document not found: " + documentId));
 
-			Map<String, Object> errorData = new HashMap<>();
-			errorData.put("error", errorMessage);
-			errorData.put("timestamp", new Date().toString());
-			document.setMetadataJson(convertMapToJson(errorData));
+		// Update status and save
+		document.setStatus(CaseDocument.DocumentStatus.REJECTED);
+		document.setMetadataJson("{\"error\": \"" + errorMessage + "\"}");
+		caseDocumentRepository.save(document);
 
-			// Save the document directly
-			caseDocumentRepository.save(document);
-
-			log.warn("Document marked as rejected due to error: {}", documentId);
-		}
-		catch (Exception e) {
-			log.error("Error updating document with error status: {}", documentId, e);
-		}
+		log.info("Document {} marked as rejected due to error", documentId);
 	}
 
 	/**
-	 * Copy base properties from source document to target document
+	 * Copy base properties from one document to another
 	 * @param source source document
 	 * @param target target document
 	 */
@@ -361,19 +268,22 @@ public class CaseDocumentService {
 		target.setFileType(source.getFileType());
 		target.setFileSize(source.getFileSize());
 		target.setStorageId(source.getStorageId());
-		target.setCreatedBy(source.getCreatedBy());
-		target.setCreatedAt(source.getCreatedAt());
-		target.setUpdatedAt(source.getUpdatedAt());
 		target.setLegalCase(source.getLegalCase());
-		target.setDownloadUrl(source.getDownloadUrl());
+		target.setStatus(CaseDocument.DocumentStatus.COMPLETE);
+		target.setDocumentType(CaseDocument.DocumentType.valueOf(source.getDocumentType().name()));
+		target.setMetadataJson(convertMapToJson(source.getMetadata()));
 	}
 
 	/**
-	 * Convert a map to JSON string
-	 * @param map the map to convert
-	 * @return JSON string representation
+	 * Convert a map to JSON
+	 * @param map map to convert
+	 * @return JSON string
 	 */
 	private String convertMapToJson(Map<String, Object> map) {
+		if (map == null || map.isEmpty()) {
+			return "{}";
+		}
+
 		try {
 			return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(map);
 		}
@@ -382,5 +292,4 @@ public class CaseDocumentService {
 			return "{}";
 		}
 	}
-
 }

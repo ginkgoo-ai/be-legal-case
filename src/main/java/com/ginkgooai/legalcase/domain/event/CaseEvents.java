@@ -1,18 +1,16 @@
 package com.ginkgooai.legalcase.domain.event;
 
-import com.ginkgooai.legalcase.domain.CaseStatus;
-import com.ginkgooai.legalcase.domain.LegalCase;
 import lombok.Getter;
 
 import java.util.Map;
 
 /**
- * Case-related domain events
+ * Container class for all case domain events
  */
 public class CaseEvents {
 
 	/**
-	 * Event fired when a new case is created
+	 * Event fired when a case is created
 	 */
 	@Getter
 	public static class CaseCreatedEvent extends BaseDomainEvent {
@@ -33,7 +31,7 @@ public class CaseEvents {
 	}
 
 	/**
-	 * Event fired when document is marked as complete
+	 * Event fired when a document is completed
 	 */
 	@Getter
 	public static class DocumentCompletedEvent extends BaseDomainEvent {
@@ -54,7 +52,7 @@ public class CaseEvents {
 	}
 
 	/**
-	 * Event fired when questionnaire is completed
+	 * Event fired when a questionnaire is completed
 	 */
 	@Getter
 	public static class QuestionnaireCompletedEvent extends BaseDomainEvent {
@@ -75,7 +73,7 @@ public class CaseEvents {
 	}
 
 	/**
-	 * Event fired when a form value is recorded (for replay purposes)
+	 * Event fired when a form value is recorded
 	 */
 	@Getter
 	public static class FormValueRecordedEvent extends BaseDomainEvent {
@@ -112,10 +110,19 @@ public class CaseEvents {
 			this.formValues = formValues;
 		}
 
-		// 兼容旧构造函数，不包括inputId、inputType和inputValue的情况
+		// Legacy constructor without input details
 		public FormValueRecordedEvent(String caseId, String formId, String formName, String pageId, String pageName,
 				Map<String, Object> formValues) {
-			this(caseId, formId, formName, pageId, pageName, null, null, null, formValues);
+			super(caseId);
+			this.caseId = caseId;
+			this.formId = formId;
+			this.formName = formName;
+			this.pageId = pageId;
+			this.pageName = pageName;
+			this.inputId = null;
+			this.inputType = null;
+			this.inputValue = null;
+			this.formValues = formValues;
 		}
 
 	}
@@ -163,7 +170,7 @@ public class CaseEvents {
 	}
 
 	/**
-	 * Event fired when all documentation is complete
+	 * Event fired when documentation is complete
 	 */
 	@Getter
 	public static class DocumentationCompleteEvent extends BaseDomainEvent {
@@ -192,6 +199,9 @@ public class CaseEvents {
 
 	}
 
+	/**
+	 * Event fired when auto-filling is completed
+	 */
 	@Getter
 	public static class AutoFillingCompletedEvent extends BaseDomainEvent {
 
@@ -205,7 +215,7 @@ public class CaseEvents {
 	}
 
 	/**
-	 * Event fired when case is put on hold
+	 * Event fired when a case is put on hold
 	 */
 	@Getter
 	public static class CasePutOnHoldEvent extends BaseDomainEvent {
@@ -223,7 +233,7 @@ public class CaseEvents {
 	}
 
 	/**
-	 * Event fired when case is resumed from hold
+	 * Event fired when a case is resumed
 	 */
 	@Getter
 	public static class CaseResumedEvent extends BaseDomainEvent {
@@ -238,7 +248,7 @@ public class CaseEvents {
 	}
 
 	/**
-	 * Event fired when case is submitted for final review
+	 * Event fired when a case is submitted
 	 */
 	@Getter
 	public static class CaseSubmittedEvent extends BaseDomainEvent {
@@ -256,7 +266,7 @@ public class CaseEvents {
 	}
 
 	/**
-	 * Event fired when case is approved
+	 * Event fired when a case is approved
 	 */
 	@Getter
 	public static class CaseApprovedEvent extends BaseDomainEvent {
@@ -277,7 +287,7 @@ public class CaseEvents {
 	}
 
 	/**
-	 * Event fired when case is denied
+	 * Event fired when a case is denied
 	 */
 	@Getter
 	public static class CaseDeniedEvent extends BaseDomainEvent {

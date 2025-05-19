@@ -3,6 +3,7 @@ package com.ginkgooai.legalcase.domain;
 import jakarta.persistence.Column;
 import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Transient;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -10,7 +11,7 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * 支持文档类型 Supporting document type
+ * Supporting document type
  */
 @Entity
 @DiscriminatorValue("SUPPORTING_DOCUMENT")
@@ -38,36 +39,43 @@ public class SupportingDocument extends CaseDocument {
 	private Boolean verified;
 
 	/**
-	 * Check if the supporting document is complete
+	 * Check if the document is complete
+	 * @return whether the document is complete
 	 */
 	@Override
 	public boolean isComplete() {
-		// If verification is not required, the document is complete when its status is
-		// COMPLETE
-		if (Boolean.FALSE.equals(verificationRequired)) {
-			return getStatus() == DocumentStatus.COMPLETE;
+		// Document is complete if basic information is provided
+		if (getTitle() == null || getTitle().isEmpty()) {
+			return false;
 		}
 
-		// If verification is required, the document must be verified
-		return getStatus() == DocumentStatus.COMPLETE && Boolean.TRUE.equals(verified);
+		// If verification is required, document must be verified to be complete
+		if (verificationRequired != null && verificationRequired && (verified == null || !verified)) {
+			return false;
+		}
+
+		return !isExpired();
 	}
 
 	/**
 	 * Check if the document is expired
+	 * @return whether the document is expired
 	 */
+	@Transient
 	public boolean isExpired() {
 		if (expiryDate == null) {
 			return false;
 		}
-		return LocalDateTime.now().isAfter(expiryDate);
+
+		return expiryDate.isBefore(LocalDateTime.now());
 	}
 
 	/**
-	 * 检查文档是否为必需 Check if the document is required
-	 * @return 文档是否为必需 / whether document is required
+	 * Check if the document is required
+	 * @return whether document is required
 	 */
+	@Transient
 	public boolean isRequired() {
-		return true;
+		return verificationRequired != null && verificationRequired;
 	}
-
 }

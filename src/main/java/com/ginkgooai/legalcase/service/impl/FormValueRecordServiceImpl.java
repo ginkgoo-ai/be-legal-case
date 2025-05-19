@@ -2,6 +2,7 @@ package com.ginkgooai.legalcase.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ginkgooai.core.common.exception.ResourceNotFoundException;
 import com.ginkgooai.legalcase.domain.CaseStatus;
 import com.ginkgooai.legalcase.domain.LegalCase;
 import com.ginkgooai.legalcase.domain.event.CaseEvents;
@@ -10,7 +11,6 @@ import com.ginkgooai.legalcase.domain.event.EventLog;
 import com.ginkgooai.legalcase.domain.event.EventPublisher;
 import com.ginkgooai.legalcase.dto.FormValueRecordDTO;
 import com.ginkgooai.legalcase.exception.FormValueRecordingException;
-import com.ginkgooai.legalcase.exception.ResourceNotFoundException;
 import com.ginkgooai.legalcase.repository.EventLogRepository;
 import com.ginkgooai.legalcase.repository.LegalCaseRepository;
 import com.ginkgooai.legalcase.service.FormValueRecordService;
@@ -55,7 +55,7 @@ public class FormValueRecordServiceImpl implements FormValueRecordService {
 
 		// 查找案例
 		LegalCase legalCase = legalCaseRepository.findById(caseId)
-			.orElseThrow(() -> new ResourceNotFoundException("Case not found: " + caseId));
+			.orElseThrow(() -> new ResourceNotFoundException("Legal case", "caseId", caseId));
 
 		// 使用LegalCase领域方法记录表单值
 		Map<String, Object> valueMap = new HashMap<>(formValues);
@@ -103,9 +103,6 @@ public class FormValueRecordServiceImpl implements FormValueRecordService {
 		throw new FormValueRecordingException("Failed to record form values: no event was generated");
 	}
 
-	/**
-	 * 记录单个表单输入值 Record a single form input value
-	 */
 	@Override
 	@Transactional
 	public FormValueRecordDTO recordInputValue(String caseId, String formId, String formName, String pageId,
@@ -115,7 +112,7 @@ public class FormValueRecordServiceImpl implements FormValueRecordService {
 				inputId);
 
 		LegalCase legalCase = legalCaseRepository.findById(caseId)
-			.orElseThrow(() -> new ResourceNotFoundException("Case not found: " + caseId));
+			.orElseThrow(() -> new ResourceNotFoundException("Legal case", "caseId", caseId));
 
 		// 使用LegalCase领域方法记录单个输入值
 		legalCase.recordFormValue(formId, formName, pageId, pageName, inputId, inputType, inputValue);
@@ -164,37 +161,28 @@ public class FormValueRecordServiceImpl implements FormValueRecordService {
 		throw new FormValueRecordingException("Failed to record input value: no event was generated");
 	}
 
-	/**
-	 * 获取案例的所有表单值记录 Get all form value records for a case
-	 */
 	@Override
 	@Transactional(readOnly = true)
 	public List<FormValueRecordDTO> getAllFormValueRecords(String caseId) {
 		log.info("Getting all form value records for case: {}", caseId);
 
-		// 验证案例是否存在
 		if (!legalCaseRepository.existsById(caseId)) {
-			throw new ResourceNotFoundException("Case not found: " + caseId);
+			throw new ResourceNotFoundException("Legal case", "caseId", caseId);
 		}
 
-		// 从EventLog获取所有表单记录事件
 		List<EventLog> eventLogs = eventLogRepository.findByLegalCaseIdAndEventTypeOrderByOccurredAtAsc(caseId,
 				FORM_VALUE_EVENT_TYPE);
 
-		// 转换为DTO
 		return eventLogs.stream().map(this::convertEventLogToDTO).collect(Collectors.toList());
 	}
 
-	/**
-	 * 获取特定表单的所有值记录 Get all form value records for a specific form
-	 */
 	@Override
 	@Transactional(readOnly = true)
 	public List<FormValueRecordDTO> getFormValueRecords(String caseId, String formId) {
 		log.info("Getting form value records for case: {} and form: {}", caseId, formId);
 
 		if (!legalCaseRepository.existsById(caseId)) {
-			throw new ResourceNotFoundException("Case not found: " + caseId);
+			throw new ResourceNotFoundException("Legal case", "caseId", caseId);
 		}
 
 		List<EventLog> eventLogs = eventLogRepository.findByLegalCaseIdOrderByOccurredAtAsc(caseId);
@@ -202,21 +190,16 @@ public class FormValueRecordServiceImpl implements FormValueRecordService {
 		return eventLogs.stream().map(this::convertEventLogToDTO).collect(Collectors.toList());
 	}
 
-	/**
-	 * 清除特定表单的所有值记录 Clear all form value records for a specific form
-	 */
 	@Override
 	@Transactional
 	public void clearFormValueRecords(String caseId, String formId) {
 		log.info("Clearing form value records for case: {} and form: {}", caseId, formId);
 
-		// 验证案例是否存在
 		if (!legalCaseRepository.existsById(caseId)) {
-			throw new ResourceNotFoundException("Case not found: " + caseId);
+			throw new ResourceNotFoundException("Legal case", "caseId", caseId);
+
 		}
 
-		// 注意：我们不应该删除EventLog中的记录，因为它们是不可变的事件历史
-		// 但可以提供一个标记"已废弃"的方法，这里简化处理，仅记录日志
 		log.info("Form value records cannot be physically deleted as they are part of event history.");
 		log.info("However, they can be ignored for future replays.");
 	}
@@ -227,7 +210,7 @@ public class FormValueRecordServiceImpl implements FormValueRecordService {
 		log.info("Replaying form value records for case: {}, form: {}", caseId, formId);
 
 		if (!legalCaseRepository.existsById(caseId)) {
-			throw new ResourceNotFoundException("Case not found: " + caseId);
+			throw new ResourceNotFoundException("Legal case", "caseId", caseId);
 		}
 
 		List<EventLog> eventLogs = eventLogRepository.findByLegalCaseIdOrderByOccurredAtAsc(caseId);
@@ -255,12 +238,8 @@ public class FormValueRecordServiceImpl implements FormValueRecordService {
 		return replayData;
 	}
 
-	/**
-	 * 将EventLog转换为FormValueRecordDTO Convert EventLog to FormValueRecordDTO
-	 */
 	private FormValueRecordDTO convertEventLogToDTO(EventLog eventLog) {
 		try {
-			// 尝试解析事件数据
 			CaseEvents.FormValueRecordedEvent event = objectMapper.readValue(eventLog.getEventData(),
 					CaseEvents.FormValueRecordedEvent.class);
 

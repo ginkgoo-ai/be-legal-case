@@ -7,17 +7,20 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * Request DTO for creating a case document
+ */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class CreateCaseDocumentRequest {
 
-	@NotBlank(message = "文档标题不能为空")
-	@Size(max = 255, message = "标题长度不能超过255个字符")
+	@NotBlank(message = "Document title cannot be empty")
+	@Size(max = 255, message = "Title length cannot exceed 255 characters")
 	private String title;
 
-	@Size(max = 1000, message = "描述长度不能超过1000个字符")
+	@Size(max = 1000, message = "Description length cannot exceed 1000 characters")
 	private String description;
 
 	private String documentType;

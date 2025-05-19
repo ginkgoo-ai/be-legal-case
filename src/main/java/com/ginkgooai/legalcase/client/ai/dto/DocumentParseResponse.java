@@ -1,5 +1,6 @@
 package com.ginkgooai.legalcase.client.ai.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -15,58 +16,39 @@ import java.util.Map;
 public class DocumentParseResponse {
 
 	/**
-	 * Status of the parsing operation
+	 * P60 data extracted from documents
 	 */
-	private String status;
+	@JsonProperty("p60")
+	private Map<String, Object> p60;
 
 	/**
-	 * Any message from the parsing service
+	 * Parents information extracted from documents
 	 */
-	private String message;
+	@JsonProperty("parents_info")
+	private Map<String, Object> parentsInfo;
 
 	/**
-	 * Extracted profile data from documents
+	 * Passport data extracted from documents
 	 */
-	private ProfileData profileData;
+	@JsonProperty("passport")
+	private Map<String, Object> passport;
 
 	/**
-	 * Contains structured profile data extracted from documents
+	 * Referee and identity data extracted from documents
 	 */
-	@Data
-	@NoArgsConstructor
-	@AllArgsConstructor
-	public static class ProfileData {
+	@JsonProperty("referee_and_identity")
+	private Map<String, Object> refereeAndIdentity;
 
-		/**
-		 * P60 data extracted from documents
-		 */
-		private Map<String, Object> p60Data;
+	/**
+	 * Referee information extracted from documents
+	 */
+	@JsonProperty("referee_info")
+	private Map<String, Object> refereeInfo;
 
-		/**
-		 * Parents information extracted from documents
-		 */
-		private Map<String, Object> parentsInfo;
-
-		/**
-		 * Passport data extracted from documents
-		 */
-		private Map<String, Object> passportData;
-
-		/**
-		 * Referee and identity data extracted from documents
-		 */
-		private Map<String, Object> refereeAndIdentityData;
-
-		/**
-		 * Referee information extracted from documents
-		 */
-		private Map<String, Object> refereeInfo;
-
-		/**
-		 * Utility bill data extracted from documents
-		 */
-		private Map<String, Object> utilityBillData;
-
-	}
+	/**
+	 * Utility bill data extracted from documents
+	 */
+	@JsonProperty("utility_bill")
+	private Map<String, Object> utilityBill;
 
 }

@@ -1,9 +1,11 @@
 package com.ginkgooai.legalcase.service.ai;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ginkgooai.legalcase.client.ai.DocumentAIClient;
 import com.ginkgooai.legalcase.client.ai.dto.DocumentParseRequest;
 import com.ginkgooai.legalcase.client.ai.dto.DocumentParseResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.stereotype.Service;
@@ -11,7 +13,6 @@ import org.springframework.stereotype.Service;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
@@ -65,10 +66,11 @@ public class DocumentAnalysisServiceImpl implements DocumentAnalysisService {
 
 			// Call mocked AI service to analyze the document
 			DocumentParseResponse response = mockDocumentAIClientResponse(request);
+			// DocumentParseResponse response = documentAIClient.parseDocuments(request);
 
-			if (!"SUCCESS".equals(response.getStatus())) {
-				log.warn("AI service returned non-success status: {}", response.getStatus());
-				return createErrorResult("AI service returned status: " + response.getStatus());
+			if (response == null) {
+				log.warn("AI service returned non-success");
+				return createErrorResult("AI service error");
 			}
 
 			// Process the response from AI service
@@ -85,86 +87,28 @@ public class DocumentAnalysisServiceImpl implements DocumentAnalysisService {
 	 * @param request The document parse request
 	 * @return Mocked document parse response
 	 */
+	@SneakyThrows
 	private DocumentParseResponse mockDocumentAIClientResponse(DocumentParseRequest request) {
 		log.info("Mocking document AI service call with 10 seconds delay");
 
 		try {
 			// Simulate network delay of 10 seconds
-			TimeUnit.SECONDS.sleep(10);
+			TimeUnit.SECONDS.sleep(5);
 		}
 		catch (InterruptedException e) {
 			log.warn("Mock delay was interrupted", e);
 			Thread.currentThread().interrupt();
 		}
 
-		// Create random mock data
-		Random random = new Random();
-
 		// Create mocked response
 		DocumentParseResponse response = new DocumentParseResponse();
-		response.setStatus("SUCCESS");
-		response.setMessage("Document parsed successfully");
 
-		// Create mock ProfileData
-		DocumentParseResponse.ProfileData profileData = new DocumentParseResponse.ProfileData();
+		ObjectMapper objectMapper = new ObjectMapper();
 
-		// Randomly select one document type to populate
-		int docType = random.nextInt(5);
+		response = objectMapper.readValue(
+				"{\"utility_bill\":{\"bank\":{\"name\":\"Santander\",\"type\":null,\"address\":{\"street\":null,\"city\":\"Bootle\",\"postcode\":\"GIR OAA\"}},\"transaction_details\":{\"reference_number\":\"9000744775033\",\"credit_account_number\":null,\"amount\":\"724.26\",\"standard_fee_payable\":null},\"payment_instructions\":{\"cheque_acceptance\":\"Cheque NOT acceptable at Post Office\",\"bank_details\":{\"bank_name\":null,\"account_name\":\"Collection Account\\nThames Water\\nUtilities Ltd\",\"sort_code\":\"57-27-53\",\"account_number\":null,\"iban\":null,\"swift_bic\":null},\"cash_payment_note\":null},\"payee\":{\"name\":null,\"address\":{\"street\":\"51 Redcliffe Square\",\"city\":\"SW10 9HG\",\"postcode\":null}},\"signature\":null,\"date\":null,\"additional_codes\":{\"code_1\":\"9826 9274 0290 0074 4775 03 0\",\"code_2\":\"257 2753\",\"code_3\":null},\"notes\":{\"do_not_write_below_line\":\"Please do not write or mark below this line and do not fold this counterfoil\",\"do_not_fold_counterfoil\":null}}}",
+				DocumentParseResponse.class);
 
-		if (docType == 0) {
-			// Mock passport data
-			Map<String, Object> passportData = new HashMap<>();
-			passportData.put("fullName", "John Smith");
-			passportData.put("dateOfBirth", "1985-05-15");
-			passportData.put("passportNumber", "P123456789");
-			passportData.put("expiryDate", "2030-01-01");
-			passportData.put("nationality", "British");
-			profileData.setPassportData(passportData);
-		}
-		else if (docType == 1) {
-			// Mock utility bill data
-			Map<String, Object> utilityBillData = new HashMap<>();
-			utilityBillData.put("name", "Alice Johnson");
-			utilityBillData.put("address", "123 Main St, London, UK");
-			utilityBillData.put("billingDate", "2023-05-01");
-			utilityBillData.put("amount", "£85.50");
-			utilityBillData.put("provider", "London Energy");
-			profileData.setUtilityBillData(utilityBillData);
-		}
-		else if (docType == 2) {
-			// Mock P60 data
-			Map<String, Object> p60Data = new HashMap<>();
-			p60Data.put("employeeName", "Michael Brown");
-			p60Data.put("taxYear", "2022-2023");
-			p60Data.put("nationalInsuranceNumber", "AB123456C");
-			p60Data.put("totalPay", "£45,000.00");
-			p60Data.put("taxDeducted", "£9,000.00");
-			profileData.setP60Data(p60Data);
-		}
-		else if (docType == 3) {
-			// Mock referee info data
-			Map<String, Object> refereeInfo = new HashMap<>();
-			refereeInfo.put("refereeName", "Dr. Elizabeth Green");
-			refereeInfo.put("relationship", "Former employer");
-			refereeInfo.put("contactEmail", "e.green@example.com");
-			refereeInfo.put("contactPhone", "07700 900123");
-			refereeInfo.put("yearsKnown", "5");
-			profileData.setRefereeInfo(refereeInfo);
-		}
-		else {
-			// Mock parents info data
-			Map<String, Object> parentsInfo = new HashMap<>();
-			parentsInfo.put("fatherName", "Robert Wilson");
-			parentsInfo.put("fatherDateOfBirth", "1960-03-20");
-			parentsInfo.put("motherName", "Sarah Wilson");
-			parentsInfo.put("motherDateOfBirth", "1962-07-15");
-			parentsInfo.put("address", "45 Oak Avenue, Manchester, UK");
-			profileData.setParentsInfo(parentsInfo);
-		}
-
-		response.setProfileData(profileData);
-
-		log.info("Mocked response generated after delay");
 		return response;
 	}
 
@@ -177,42 +121,34 @@ public class DocumentAnalysisServiceImpl implements DocumentAnalysisService {
 		Map<String, Object> result = new HashMap<>();
 
 		// Extract document data from response
-		DocumentParseResponse.ProfileData profileData = response.getProfileData();
 
-		if (profileData == null) {
+		if (response == null) {
 			return createErrorResult("No profile data returned from AI service");
 		}
 
 		// Determine document type and category based on the data extracted
-		if (profileData.getPassportData() != null && !profileData.getPassportData().isEmpty()) {
+		if (response.getPassport() != null && !response.getPassport().isEmpty()) {
 			result.put("documentType", "IDENTITY");
 			result.put("documentCategory", "PROFILE");
-			result.put("extractedData", profileData.getPassportData());
+			result.put("extractedData", response.getPassport());
 			result.put("isComplete", true);
 		}
-		else if (profileData.getUtilityBillData() != null && !profileData.getUtilityBillData().isEmpty()) {
+		else if (response.getUtilityBill() != null && !response.getUtilityBill().isEmpty()) {
 			result.put("documentType", "ADDRESS_PROOF");
 			result.put("documentCategory", "PROFILE");
-			result.put("extractedData", profileData.getUtilityBillData());
+			result.put("extractedData", response.getUtilityBill());
 			result.put("isComplete", true);
 		}
-		else if (profileData.getP60Data() != null && !profileData.getP60Data().isEmpty()) {
+		else if (response.getP60() != null && !response.getP60().isEmpty()) {
 			result.put("documentType", "FINANCIAL");
 			result.put("documentCategory", "SUPPORTING_DOCUMENT");
-			result.put("extractedData", profileData.getP60Data());
+			result.put("extractedData", response.getP60());
 			result.put("isComplete", true);
 		}
-		else if (profileData.getRefereeInfo() != null && !profileData.getRefereeInfo().isEmpty()) {
-			result.put("documentType", "QUESTIONNAIRE");
-			result.put("documentCategory", "QUESTIONNAIRE");
-			result.put("extractedData", profileData.getRefereeInfo());
-			result.put("isComplete", false); // Questionnaires typically need manual
-												// review
-		}
-		else if (profileData.getParentsInfo() != null && !profileData.getParentsInfo().isEmpty()) {
+		else if (response.getParentsInfo() != null && !response.getParentsInfo().isEmpty()) {
 			result.put("documentType", "APPLICANT");
 			result.put("documentCategory", "PROFILE");
-			result.put("extractedData", profileData.getRefereeInfo());
+			result.put("extractedData", response.getRefereeInfo());
 			result.put("isComplete", false); // Questionnaires typically need manual
 												// review
 		}

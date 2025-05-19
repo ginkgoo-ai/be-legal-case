@@ -1,7 +1,5 @@
 package com.ginkgooai.legalcase.controller;
 
-import com.ginkgooai.legalcase.domain.LegalCase;
-import com.ginkgooai.legalcase.dto.EventLogResponse;
 import com.ginkgooai.legalcase.dto.LegalCaseResponse;
 import com.ginkgooai.legalcase.service.CaseEventEmitterService;
 import com.ginkgooai.legalcase.service.CaseService;
@@ -9,7 +7,6 @@ import com.ginkgooai.legalcase.service.EventLogService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -23,13 +20,12 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * Case SSE controller
  */
 @RestController
-@RequestMapping("/api/cases")
+@RequestMapping("/cases")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Case SSE", description = "Server-sent events API for real-time case updates")

@@ -1,8 +1,8 @@
 package com.ginkgooai.legalcase.service.impl;
 
+import com.ginkgooai.core.common.exception.ResourceNotFoundException;
 import com.ginkgooai.legalcase.domain.event.EventLog;
 import com.ginkgooai.legalcase.dto.EventLogResponse;
-import com.ginkgooai.legalcase.exception.ResourceNotFoundException;
 import com.ginkgooai.legalcase.repository.EventLogRepository;
 import com.ginkgooai.legalcase.repository.LegalCaseRepository;
 import com.ginkgooai.legalcase.service.EventLogService;
@@ -38,7 +38,7 @@ public class EventLogServiceImpl implements EventLogService {
 
 		// 验证案例是否存在
 		if (!legalCaseRepository.existsById(caseId)) {
-			throw new ResourceNotFoundException("Case not found: " + caseId);
+			throw new ResourceNotFoundException("Legal case", "caseId", caseId);
 		}
 
 		// 获取所有事件日志
@@ -61,7 +61,7 @@ public class EventLogServiceImpl implements EventLogService {
 
 		// 验证案例是否存在
 		if (!legalCaseRepository.existsById(caseId)) {
-			throw new ResourceNotFoundException("Case not found: " + caseId);
+			throw new ResourceNotFoundException("Legal case", "caseId", caseId);
 		}
 
 		// 获取特定类型的事件日志

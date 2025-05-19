@@ -2,13 +2,11 @@ package com.ginkgooai.legalcase.domain;
 
 import com.ginkgooai.legalcase.domain.event.CaseEvents;
 import com.ginkgooai.legalcase.domain.event.DomainEvent;
-import lombok.Builder;
+import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import jakarta.persistence.*;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -147,27 +145,28 @@ public class LegalCase extends BaseAuditableEntity {
 	}
 
 	/**
-	 * 将文档标记为完成 Mark a document as complete
-	 * @param documentId 文档ID / document ID
-	 * @param documentName 文档名称 / document name
+	 * Mark a document as complete
+	 * @param documentId document ID
+	 * @param documentName document name
 	 */
 	public void markDocumentComplete(String documentId, String documentName) {
-		// 查找文档并更新其状态
+		// Find the document and update its status
 		this.documents.stream().filter(doc -> documentId.equals(doc.getId())).findFirst().ifPresent(doc -> {
 			doc.setStatus(CaseDocument.DocumentStatus.COMPLETE);
 			registerEvent(new CaseEvents.DocumentCompletedEvent(this.id, documentId, documentName));
 
-			// 发出文档完成事件，后续的LLM分析判断由服务层处理
+			// Fire document completion event, LLM analysis will be handled by service
+			// layer
 		});
 	}
 
 	/**
-	 * 将问卷标记为完成 Mark a questionnaire as complete
-	 * @param questionnaireId 问卷ID / questionnaire ID
-	 * @param questionnaireName 问卷名称 / questionnaire name
+	 * Mark a questionnaire as complete
+	 * @param questionnaireId questionnaire ID
+	 * @param questionnaireName questionnaire name
 	 */
 	public void markQuestionnaireComplete(String questionnaireId, String questionnaireName) {
-		// 查找问卷文档并更新其状态
+		// Find the questionnaire document and update its status
 		this.getQuestionnaireDocuments()
 			.stream()
 			.filter(doc -> questionnaireId.equals(doc.getId()))
@@ -176,26 +175,26 @@ public class LegalCase extends BaseAuditableEntity {
 				doc.setStatus(CaseDocument.DocumentStatus.COMPLETE);
 				registerEvent(new CaseEvents.QuestionnaireCompletedEvent(this.id, questionnaireId, questionnaireName));
 
-				// 发出问卷完成事件，后续的LLM分析判断由服务层处理
+				// Fire questionnaire completion event, LLM analysis will be handled by
+				// service layer
 			});
 	}
 
 	/**
-	 * 检查是否应该触发LLM分析（仅检查文档完成状态，不负责时间判断） Check if LLM analysis should be initiated based on
-	 * document/questionnaire completion (only checks document status, not responsible for
-	 * time-based decisions)
-	 * @return 是否应该触发LLM分析 / whether LLM analysis should be initiated
+	 * Check if LLM analysis should be initiated based on document/questionnaire
+	 * completion (only checks document status, not responsible for time-based decisions)
+	 * @return whether LLM analysis should be initiated
 	 */
 	public boolean hasCompletedDocumentsForAnalysis() {
 		return this.documents.stream().anyMatch(CaseDocument::isComplete);
 	}
 
 	/**
-	 * 开始LLM分析 Initiate LLM analysis
-	 * @param analysisType 分析类型 / analysis type
+	 * Initiate LLM analysis
+	 * @param analysisType analysis type
 	 */
 	public void initiateLlmAnalysis(String analysisType) {
-		// 更新案例状态
+		// Update case status
 		CaseStatus previousStatus = this.status;
 		this.status = CaseStatus.ANALYZING;
 
@@ -205,15 +204,15 @@ public class LegalCase extends BaseAuditableEntity {
 	}
 
 	/**
-	 * 完成LLM分析 Complete LLM analysis
-	 * @param successful 是否成功 / whether successful
-	 * @param resultSummary 结果摘要 / result summary
+	 * Complete LLM analysis
+	 * @param successful whether successful
+	 * @param resultSummary result summary
 	 */
 	public void completeLlmAnalysis(boolean successful, String resultSummary) {
-		// 更新案例状态
+		// Update case status
 		CaseStatus previousStatus = this.status;
 
-		// 检查所有文档是否已完成
+		// Check if all documentation is complete
 		if (isAllDocumentationComplete()) {
 			this.status = CaseStatus.DOCUMENTATION_COMPLETE;
 		}
@@ -226,23 +225,23 @@ public class LegalCase extends BaseAuditableEntity {
 		registerEvent(
 				new CaseEvents.LlmAnalysisCompletedEvent(this.id, "document_analysis", successful, resultSummary));
 
-		// 如果文档已全部完成，发出文档完成事件
+		// If all documentation is complete, fire documentation completion event
 		if (this.status == CaseStatus.DOCUMENTATION_COMPLETE) {
 			registerEvent(new CaseEvents.DocumentationCompleteEvent(this.id));
 		}
 	}
 
 	/**
-	 * 判断所有必需的文档是否已完成 Check if all required documentation is complete
-	 * @return 是否所有文档已完成 / whether all documentation is complete
+	 * Check if all required documentation is complete
+	 * @return whether all documentation is complete
 	 */
 	public boolean isAllDocumentationComplete() {
-		// 检查所有问卷是否完成
+		// Check if all questionnaires are complete
 		boolean allQuestionnairesComplete = this.getQuestionnaireDocuments()
 			.stream()
 			.allMatch(QuestionnaireDocument::isComplete);
 
-		// 检查必要的支持文档是否完成
+		// Check if required supporting documents are complete
 		boolean allSupportingDocsComplete = true;
 		List<SupportingDocument> requiredDocs = this.getSupportingDocuments()
 			.stream()
@@ -257,10 +256,10 @@ public class LegalCase extends BaseAuditableEntity {
 	}
 
 	/**
-	 * 开始自动填充 Initiate auto-filling
+	 * Initiate auto-filling
 	 */
 	public void initiateAutoFilling() {
-		// 检查状态是否为DOCUMENTATION_COMPLETE
+		// Check if status is DOCUMENTATION_COMPLETE
 		if (this.status != CaseStatus.DOCUMENTATION_COMPLETE && this.status != CaseStatus.READY_TO_FILL) {
 			throw new IllegalStateException("Cannot initiate auto-filling: documentation is not complete");
 		}
@@ -274,8 +273,8 @@ public class LegalCase extends BaseAuditableEntity {
 	}
 
 	/**
-	 * 暂停案例处理 Put the case on hold
-	 * @param reason 暂停原因 / reason for pause
+	 * Put the case on hold
+	 * @param reason reason for pause
 	 */
 	public void putOnHold(String reason) {
 		CaseStatus previousStatus = this.status;
@@ -285,7 +284,7 @@ public class LegalCase extends BaseAuditableEntity {
 	}
 
 	/**
-	 * 恢复案例处理 Resume the case from on-hold status
+	 * Resume the case from on-hold status
 	 */
 	public void resumeFromHold() {
 		if (this.status != CaseStatus.ON_HOLD) {
@@ -299,7 +298,7 @@ public class LegalCase extends BaseAuditableEntity {
 	}
 
 	/**
-	 * 完成自动填充 Complete auto-filling
+	 * Complete auto-filling
 	 */
 	public void completeAutoFilling() {
 		if (this.status != CaseStatus.AUTO_FILLING) {
@@ -313,8 +312,8 @@ public class LegalCase extends BaseAuditableEntity {
 	}
 
 	/**
-	 * 提交案例 Submit the case
-	 * @param submittedBy 提交人 / submitted by
+	 * Submit the case
+	 * @param submittedBy submitted by
 	 */
 	public void submitCase(String submittedBy) {
 		if (this.status != CaseStatus.FINAL_REVIEW) {
@@ -328,9 +327,9 @@ public class LegalCase extends BaseAuditableEntity {
 	}
 
 	/**
-	 * 批准案例 Approve the case
-	 * @param approvedBy 批准人 / approved by
-	 * @param comments 批准意见 / approval comments
+	 * Approve the case
+	 * @param approvedBy approved by
+	 * @param comments approval comments
 	 */
 	public void approveCase(String approvedBy, String comments) {
 		if (this.status != CaseStatus.SUBMITTED) {
@@ -344,9 +343,9 @@ public class LegalCase extends BaseAuditableEntity {
 	}
 
 	/**
-	 * 拒绝案例 Deny the case
-	 * @param deniedBy 拒绝人 / denied by
-	 * @param reason 拒绝原因 / denial reason
+	 * Deny the case
+	 * @param deniedBy denied by
+	 * @param reason denial reason
 	 */
 	public void denyCase(String deniedBy, String reason) {
 		if (this.status != CaseStatus.SUBMITTED) {
@@ -360,15 +359,15 @@ public class LegalCase extends BaseAuditableEntity {
 	}
 
 	/**
-	 * 记录表单值 Record form value
-	 * @param formId 表单ID / form ID
-	 * @param formName 表单名称 / form name
-	 * @param pageId 页面ID / page ID
-	 * @param pageName 页面名称 / page name
-	 * @param inputId 输入ID / input ID
-	 * @param inputType 输入类型 / input type
-	 * @param inputValue 输入值 / input value
-	 * @param sequenceNumber 序列号 / sequence number
+	 * Record form value
+	 * @param formId form ID
+	 * @param formName form name
+	 * @param pageId page ID
+	 * @param pageName page name
+	 * @param inputId input ID
+	 * @param inputType input type
+	 * @param inputValue input value
+	 * @param sequenceNumber sequence number
 	 */
 	public void recordFormValue(String formId, String formName, String pageId, String pageName, String inputId,
 			String inputType, String inputValue) {

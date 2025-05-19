@@ -1,7 +1,6 @@
 package com.ginkgooai.legalcase.service.impl;
 
 import com.ginkgooai.legalcase.domain.LegalCase;
-import com.ginkgooai.legalcase.domain.event.EventLog;
 import com.ginkgooai.legalcase.repository.EventLogRepository;
 import com.ginkgooai.legalcase.repository.LegalCaseRepository;
 import com.ginkgooai.legalcase.service.LlmAnalysisService;
@@ -11,11 +10,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
 /**
- * LLM分析服务实现 Implementation of LLM analysis service
+ * Implementation of LLM analysis service
  */
 @Service
 @RequiredArgsConstructor
@@ -31,63 +30,73 @@ public class LlmAnalysisServiceImpl implements LlmAnalysisService {
 	private static final int MIN_ANALYSIS_INTERVAL_HOURS = 1;
 
 	/**
-	 * 检查并在必要时触发LLM分析 Check and trigger LLM analysis if necessary
+	 * Check and trigger LLM analysis if necessary
+	 * @param caseId case ID
+	 * @return whether analysis was triggered
 	 */
 	@Override
 	@Transactional
 	public boolean checkAndTriggerAnalysis(String caseId) {
-		log.debug("Checking if case {} should undergo LLM analysis", caseId);
+		log.info("Checking if LLM analysis should be triggered for case: {}", caseId);
 
-		LegalCase legalCase = legalCaseRepository.findById(caseId)
-			.orElseThrow(() -> new IllegalArgumentException("Case not found: " + caseId));
+		LegalCase legalCase = legalCaseRepository.findByIdWithDocuments(caseId).orElse(null);
+		if (legalCase == null) {
+			log.warn("Case not found for LLM analysis check: {}", caseId);
+			return false;
+		}
 
 		if (shouldPerformAnalysis(legalCase)) {
-			log.info("Triggering LLM analysis for case {}", caseId);
+			log.info("Triggering LLM analysis for case: {}", caseId);
 			legalCase.initiateLlmAnalysis("document_analysis");
 			legalCaseRepository.save(legalCase);
 			return true;
 		}
 
+		log.info("LLM analysis not needed for case: {}", caseId);
 		return false;
 	}
 
 	/**
-	 * 检查案例是否应该进行LLM分析 Check if a case should undergo LLM analysis
+	 * Check if a case should undergo LLM analysis
+	 * @param legalCase legal case
+	 * @return whether analysis should be performed
 	 */
 	@Override
 	public boolean shouldPerformAnalysis(LegalCase legalCase) {
-		// 检查是否有完成的文档
+		// Check if there are completed documents
 		if (!legalCase.hasCompletedDocumentsForAnalysis()) {
-			log.debug("Case {} has no completed documents for analysis", legalCase.getId());
+			log.info("No completed documents for analysis in case: {}", legalCase.getId());
 			return false;
 		}
 
-		// 检查上次分析时间
+		// Check last analysis time
 		LocalDateTime lastAnalysisTime = getLastAnalysisTime(legalCase.getId());
 
-		// 如果没有进行过分析，或者距离上次分析已经超过规定的间隔时间
+		// If no previous analysis or enough time has passed since last analysis
 		if (lastAnalysisTime == null) {
-			log.debug("Case {} has never been analyzed before", legalCase.getId());
+			log.info("No previous analysis for case: {}", legalCase.getId());
 			return true;
 		}
 
-		boolean shouldAnalyze = LocalDateTime.now().minusHours(MIN_ANALYSIS_INTERVAL_HOURS).isAfter(lastAnalysisTime);
-		log.debug("Case {} last analyzed at {}. Should analyze now: {}", legalCase.getId(), lastAnalysisTime,
-				shouldAnalyze);
+		LocalDateTime now = LocalDateTime.now();
+		long hoursSinceLastAnalysis = ChronoUnit.HOURS.between(lastAnalysisTime, now);
+		log.info("Hours since last analysis for case {}: {}", legalCase.getId(), hoursSinceLastAnalysis);
 
-		return shouldAnalyze;
+		return hoursSinceLastAnalysis >= MIN_ANALYSIS_INTERVAL_HOURS;
 	}
 
 	/**
-	 * 获取上次LLM分析的时间 Get the time of the last LLM analysis
+	 * Get the time of the last LLM analysis
+	 * @param caseId case ID
+	 * @return time of the last analysis
 	 */
 	@Override
 	public LocalDateTime getLastAnalysisTime(String caseId) {
-		// 从事件日志中查询最后一次LLM分析事件的时间
-		Optional<LocalDateTime> lastAnalysisTime = eventLogRepository.findLastEventTimeByTypeAndCaseId(caseId,
+		// Query the last LLM analysis event time from event logs
+		Optional<LocalDateTime> lastEventTime = eventLogRepository.findLastEventTimeByTypeAndCaseId(caseId,
 				LLM_ANALYSIS_INITIATED_EVENT);
 
-		return lastAnalysisTime.orElse(null);
+		return lastEventTime.orElse(null);
 	}
 
 }

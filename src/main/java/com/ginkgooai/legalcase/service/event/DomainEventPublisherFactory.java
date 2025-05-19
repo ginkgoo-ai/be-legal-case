@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * Factory for publishing domain events from aggregates
+ * Factory for creating and managing domain event publishers
  */
 @Component
 @RequiredArgsConstructor
@@ -20,8 +20,8 @@ public class DomainEventPublisherFactory {
 	private final EventPublisher eventPublisher;
 
 	/**
-	 * 获取事件发布器实例 Get the event publisher instance
-	 * @return 事件发布器 / event publisher
+	 * Get the event publisher instance
+	 * @return event publisher
 	 */
 	public EventPublisher getEventPublisher() {
 		return eventPublisher;
@@ -29,18 +29,15 @@ public class DomainEventPublisherFactory {
 
 	/**
 	 * Publish all domain events from a legal case
-	 * @param legalCase the legal case
+	 * @param legalCase legal case with domain events
 	 */
 	public void publishEvents(LegalCase legalCase) {
 		List<DomainEvent> events = legalCase.getAndClearDomainEvents();
-
 		if (events.isEmpty()) {
 			return;
 		}
 
-		log.debug("Publishing {} events for case {}", events.size(), legalCase.getId());
-
+		log.debug("Publishing {} domain events for case: {}", events.size(), legalCase.getId());
 		events.forEach(eventPublisher::publish);
 	}
-
 }

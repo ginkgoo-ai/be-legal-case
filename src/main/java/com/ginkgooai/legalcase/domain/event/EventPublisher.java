@@ -14,8 +14,8 @@ public interface EventPublisher {
 	void publish(DomainEvent event);
 
 	/**
-	 * 发布表单值记录事件 Publish a form value recorded event
-	 * @param event 表单值记录事件 / form value recorded event
+	 * Publish a form value recorded event
+	 * @param event form value recorded event
 	 */
 	default void publishEvent(FormValueRecordedEvent event) {
 		publish(event);

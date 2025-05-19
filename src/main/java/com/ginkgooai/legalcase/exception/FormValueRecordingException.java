@@ -1,7 +1,7 @@
 package com.ginkgooai.legalcase.exception;
 
 /**
- * 表单值记录异常 Exception thrown when there is an error recording form values
+ * Exception thrown when there is an error recording form values
  */
 public class FormValueRecordingException extends RuntimeException {
 
