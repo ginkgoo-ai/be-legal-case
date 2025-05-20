@@ -17,8 +17,8 @@ public class QuestionnaireSubmissionRequest {
 	@NotNull(message = "Questionnaire ID cannot be empty")
 	private String questionnaireId;
 
-	@NotNull(message = "User ID cannot be empty")
-	private String userId;
+	@NotNull(message = "Questionnaire Name cannot be empty")
+	private String questionnaireName;
 
 	private String caseId;
 

@@ -25,9 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * 表单值记录服务实现 Service implementation for form value records
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -43,9 +40,6 @@ public class FormValueRecordServiceImpl implements FormValueRecordService {
 
 	private static final String FORM_VALUE_EVENT_TYPE = "FormValueRecorded";
 
-	/**
-	 * 记录表单值 Record form values
-	 */
 	@Override
 	@Transactional
 	public FormValueRecordDTO recordFormValues(String caseId, String formId, String formName, String pageId,
@@ -53,11 +47,9 @@ public class FormValueRecordServiceImpl implements FormValueRecordService {
 
 		log.info("Recording form values for case: {}, form: {}, page: {}", caseId, formName, pageName);
 
-		// 查找案例
 		LegalCase legalCase = legalCaseRepository.findById(caseId)
 			.orElseThrow(() -> new ResourceNotFoundException("Legal case", "caseId", caseId));
 
-		// 使用LegalCase领域方法记录表单值
 		Map<String, Object> valueMap = new HashMap<>(formValues);
 		for (Map.Entry<String, Object> entry : valueMap.entrySet()) {
 			String inputId = entry.getKey();
@@ -65,25 +57,20 @@ public class FormValueRecordServiceImpl implements FormValueRecordService {
 			legalCase.recordFormValue(formId, formName, pageId, pageName, inputId, "unknown", inputValue);
 		}
 
-		// 检查是否需要开始自动填充（如果案例状态为 DOCUMENTATION_COMPLETE 或 READY_TO_FILL）
 		if (legalCase.getStatus() == CaseStatus.DOCUMENTATION_COMPLETE
 				|| legalCase.getStatus() == CaseStatus.READY_TO_FILL) {
 			legalCase.initiateAutoFilling();
 		}
 
-		// 保存LegalCase以触发事件
 		legalCaseRepository.save(legalCase);
 
-		// 处理领域事件并返回FormValueRecordDTO
 		List<DomainEvent> events = legalCase.getAndClearDomainEvents();
 		for (DomainEvent event : events) {
 			if (event instanceof CaseEvents.FormValueRecordedEvent) {
 				CaseEvents.FormValueRecordedEvent formEvent = (CaseEvents.FormValueRecordedEvent) event;
 
-				// 发布事件到EventPublisher
 				eventPublisher.publishEvent(formEvent);
 
-				// 构建返回值
 				FormValueRecordDTO dto = FormValueRecordDTO.builder()
 					.caseId(caseId)
 					.formId(formId)
@@ -114,28 +101,22 @@ public class FormValueRecordServiceImpl implements FormValueRecordService {
 		LegalCase legalCase = legalCaseRepository.findById(caseId)
 			.orElseThrow(() -> new ResourceNotFoundException("Legal case", "caseId", caseId));
 
-		// 使用LegalCase领域方法记录单个输入值
 		legalCase.recordFormValue(formId, formName, pageId, pageName, inputId, inputType, inputValue);
 
-		// 检查是否需要开始自动填充（如果案例状态为 DOCUMENTATION_COMPLETE 或 READY_TO_FILL）
 		if (legalCase.getStatus() == CaseStatus.DOCUMENTATION_COMPLETE
 				|| legalCase.getStatus() == CaseStatus.READY_TO_FILL) {
 			legalCase.initiateAutoFilling();
 		}
 
-		// 保存LegalCase以触发事件
 		legalCaseRepository.save(legalCase);
 
-		// 处理领域事件并返回FormValueRecordDTO
 		List<DomainEvent> events = legalCase.getAndClearDomainEvents();
 		for (DomainEvent event : events) {
 			if (event instanceof CaseEvents.FormValueRecordedEvent) {
 				CaseEvents.FormValueRecordedEvent formEvent = (CaseEvents.FormValueRecordedEvent) event;
 
-				// 发布事件到EventPublisher
 				eventPublisher.publishEvent(formEvent);
 
-				// 构建返回值
 				Map<String, Object> formValues = new HashMap<>();
 				formValues.put(inputId, inputValue);
 

@@ -141,7 +141,7 @@ public class DocumentAnalysisServiceImpl implements DocumentAnalysisService {
 		}
 		else if (response.getP60() != null && !response.getP60().isEmpty()) {
 			result.put("documentType", "FINANCIAL");
-			result.put("documentCategory", "SUPPORTING_DOCUMENT");
+			result.put("documentCategory", "PROFILE");
 			result.put("extractedData", response.getP60());
 			result.put("isComplete", true);
 		}

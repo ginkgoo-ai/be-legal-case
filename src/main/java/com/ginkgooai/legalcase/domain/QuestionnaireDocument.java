@@ -27,9 +27,6 @@ public class QuestionnaireDocument extends CaseDocument {
 	@Column(name = "completion_percentage")
 	private Integer completionPercentage;
 
-	@Column(name = "responses_json", columnDefinition = "jsonb")
-	private String responsesJson;
-
 	@Transient
 	private Map<String, Object> responses = new HashMap<>();
 

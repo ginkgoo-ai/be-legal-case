@@ -1,5 +1,6 @@
 package com.ginkgooai.legalcase.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ginkgooai.core.common.exception.ResourceNotFoundException;
 import com.ginkgooai.legalcase.client.storage.StorageClient;
 import com.ginkgooai.legalcase.client.storage.dto.CloudFileResponse;
@@ -256,25 +257,6 @@ public class CaseDocumentService {
 	}
 
 	/**
-	 * Copy base properties from one document to another
-	 * @param source source document
-	 * @param target target document
-	 */
-	private void copyBaseProperties(CaseDocument source, CaseDocument target) {
-		target.setId(source.getId());
-		target.setTitle(source.getTitle());
-		target.setDescription(source.getDescription());
-		target.setFilePath(source.getFilePath());
-		target.setFileType(source.getFileType());
-		target.setFileSize(source.getFileSize());
-		target.setStorageId(source.getStorageId());
-		target.setLegalCase(source.getLegalCase());
-		target.setStatus(CaseDocument.DocumentStatus.COMPLETE);
-		target.setDocumentType(CaseDocument.DocumentType.valueOf(source.getDocumentType().name()));
-		target.setMetadataJson(convertMapToJson(source.getMetadata()));
-	}
-
-	/**
 	 * Convert a map to JSON
 	 * @param map map to convert
 	 * @return JSON string
@@ -285,7 +267,7 @@ public class CaseDocumentService {
 		}
 
 		try {
-			return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(map);
+			return new ObjectMapper().writeValueAsString(map);
 		}
 		catch (Exception e) {
 			log.error("Error converting map to JSON", e);
