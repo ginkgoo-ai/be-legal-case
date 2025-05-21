@@ -7,6 +7,7 @@ import com.ginkgooai.core.common.utils.ContextUtils;
 import com.ginkgooai.legalcase.client.storage.StorageClient;
 import com.ginkgooai.legalcase.client.storage.dto.CloudFileResponse;
 import com.ginkgooai.legalcase.domain.CaseDocument;
+import com.ginkgooai.legalcase.domain.DocumentType;
 import com.ginkgooai.legalcase.domain.LegalCase;
 import com.ginkgooai.legalcase.domain.QuestionnaireDocument;
 import com.ginkgooai.legalcase.dto.QuestionnaireSubmissionRequest;
@@ -76,7 +77,7 @@ public class QuestionnaireServiceImpl implements QuestionnaireService {
 		questionnaireDoc.setFileType("application/pdf");
 		questionnaireDoc.setFileSize(fileResponse.getFileSize());
 		questionnaireDoc.setStatus(CaseDocument.DocumentStatus.COMPLETE);
-		questionnaireDoc.setDocumentType(CaseDocument.DocumentType.QUESTIONNAIRE);
+		questionnaireDoc.setDocumentType(DocumentType.QUESTIONNAIRE);
 		questionnaireDoc.setDocumentCategory(CaseDocument.DocumentCategory.QUESTIONNAIRE);
 		questionnaireDoc.setCompletionPercentage(100);
 

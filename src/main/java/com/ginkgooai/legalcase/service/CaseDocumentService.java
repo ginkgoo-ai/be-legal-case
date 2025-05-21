@@ -5,6 +5,7 @@ import com.ginkgooai.core.common.exception.ResourceNotFoundException;
 import com.ginkgooai.legalcase.client.storage.StorageClient;
 import com.ginkgooai.legalcase.client.storage.dto.CloudFileResponse;
 import com.ginkgooai.legalcase.domain.CaseDocument;
+import com.ginkgooai.legalcase.domain.DocumentType;
 import com.ginkgooai.legalcase.domain.LegalCase;
 import com.ginkgooai.legalcase.domain.SupportingDocument;
 import com.ginkgooai.legalcase.domain.event.CaseEvents;
@@ -110,7 +111,7 @@ public class CaseDocumentService {
 			document.setFileType(fileInfo.getFileType());
 			document.setFileSize(fileInfo.getFileSize());
 			document.setStatus(CaseDocument.DocumentStatus.PENDING);
-			document.setDocumentType(CaseDocument.DocumentType.OTHER);
+			document.setDocumentType(DocumentType.OTHER);
 
 			// Add to case
 			legalCase.addSupportingDocument(document);
@@ -224,7 +225,7 @@ public class CaseDocumentService {
 
 		document.setDocumentCategory(CaseDocument.DocumentCategory.valueOf(documentCategory));
 		document.setMetadataJson(convertMapToJson(extractedData));
-		document.setDocumentType(CaseDocument.DocumentType.valueOf(documentType));
+		document.setDocumentType(DocumentType.valueOf(documentType));
 
 		legalCaseRepository.save(legalCase);
 

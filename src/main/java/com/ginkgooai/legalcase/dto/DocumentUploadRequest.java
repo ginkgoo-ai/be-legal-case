@@ -1,6 +1,7 @@
 package com.ginkgooai.legalcase.dto;
 
 import com.ginkgooai.legalcase.domain.CaseDocument;
+import com.ginkgooai.legalcase.domain.DocumentType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -25,7 +26,7 @@ public class DocumentUploadRequest {
 	/**
 	 * Type of document
 	 */
-	private CaseDocument.DocumentType documentType;
+	private DocumentType documentType;
 
 	/**
 	 * Category of document (questionnaire, profile, or supporting document)

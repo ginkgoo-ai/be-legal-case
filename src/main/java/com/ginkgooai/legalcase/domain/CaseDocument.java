@@ -84,27 +84,6 @@ public class CaseDocument extends BaseLogicalDeleteEntity {
 	}
 
 	/**
-	 * Document type enumeration
-	 */
-	public enum DocumentType {
-
-		CONTRACT("Contract"), EVIDENCE("Evidence"), COURT_FILING("Court Filing"), CORRESPONDENCE("Correspondence"),
-		IDENTITY("Identity Document"), ADDRESS_PROOF("Address Proof"), FINANCIAL("Financial Document"),
-		QUESTIONNAIRE("Questionnaire"), PROFILE_INFO("Profile Information"), NOTES("Notes"), OTHER("Other");
-
-		private final String displayName;
-
-		DocumentType(String displayName) {
-			this.displayName = displayName;
-		}
-
-		public String getDisplayName() {
-			return displayName;
-		}
-
-	}
-
-	/**
 	 * Document status enumeration
 	 */
 	public enum DocumentStatus {

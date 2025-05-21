@@ -1,6 +1,7 @@
 package com.ginkgooai.legalcase.repository;
 
 import com.ginkgooai.legalcase.domain.CaseDocument;
+import com.ginkgooai.legalcase.domain.DocumentType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -60,7 +61,7 @@ public interface CaseDocumentRepository extends JpaRepository<CaseDocument, Stri
 	 */
 	@Query("SELECT d FROM CaseDocument d WHERE d.legalCase.id = :caseId AND d.documentType = :documentType")
 	List<CaseDocument> findByCaseIdAndDocumentType(@Param("caseId") String caseId,
-			@Param("documentType") CaseDocument.DocumentType documentType);
+			@Param("documentType") DocumentType documentType);
 
 	/**
 	 * Find document by ID with legal case eagerly loaded

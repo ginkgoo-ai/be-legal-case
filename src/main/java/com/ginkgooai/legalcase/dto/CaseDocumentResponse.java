@@ -1,7 +1,7 @@
 package com.ginkgooai.legalcase.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import com.ginkgooai.legalcase.domain.CaseDocument.DocumentType;
+import com.ginkgooai.legalcase.domain.DocumentType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

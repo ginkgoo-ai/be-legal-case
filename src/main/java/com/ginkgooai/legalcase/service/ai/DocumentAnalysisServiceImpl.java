@@ -128,29 +128,40 @@ public class DocumentAnalysisServiceImpl implements DocumentAnalysisService {
 
 		// Determine document type and category based on the data extracted
 		if (response.getPassport() != null && !response.getPassport().isEmpty()) {
-			result.put("documentType", "IDENTITY");
+			result.put("documentType", "PASSPORT");
 			result.put("documentCategory", "PROFILE");
 			result.put("extractedData", response.getPassport());
 			result.put("isComplete", true);
 		}
 		else if (response.getUtilityBill() != null && !response.getUtilityBill().isEmpty()) {
-			result.put("documentType", "ADDRESS_PROOF");
+			result.put("documentType", "UTILITY_BILL");
 			result.put("documentCategory", "PROFILE");
 			result.put("extractedData", response.getUtilityBill());
 			result.put("isComplete", true);
 		}
 		else if (response.getP60() != null && !response.getP60().isEmpty()) {
-			result.put("documentType", "FINANCIAL");
+			result.put("documentType", "P60");
 			result.put("documentCategory", "PROFILE");
 			result.put("extractedData", response.getP60());
 			result.put("isComplete", true);
 		}
-		else if (response.getParentsInfo() != null && !response.getParentsInfo().isEmpty()) {
-			result.put("documentType", "APPLICANT");
+		else if (response.getParentsInfo() != null && !response.getRefereeInfo().isEmpty()) {
+			result.put("documentType", "REFEREE_INFO");
 			result.put("documentCategory", "PROFILE");
 			result.put("extractedData", response.getRefereeInfo());
-			result.put("isComplete", false); // Questionnaires typically need manual
-												// review
+			result.put("isComplete", true);
+		}
+		else if (response.getParentsInfo() != null && !response.getParentsInfo().isEmpty()) {
+			result.put("documentType", "PARENTS_INFO");
+			result.put("documentCategory", "PROFILE");
+			result.put("extractedData", response.getParentsInfo());
+			result.put("isComplete", true); 
+		}
+		else if (response.getParentsInfo() != null && !response.getRefereeAndIdentity().isEmpty()) {
+			result.put("documentType", "REFEREE_AND_IDENTITY");
+			result.put("documentCategory", "PROFILE");
+			result.put("extractedData", response.getRefereeAndIdentity());
+			result.put("isComplete", true);
 		}
 		else {
 			// Default handling for unrecognized document types
